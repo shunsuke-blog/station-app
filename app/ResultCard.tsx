@@ -25,7 +25,7 @@ export default function ResultCard({ resultStation, departureStation }: Props) {
       </h2>
       <p className="text-xs text-slate-500">
         📍 {resultStation.prefecture} <br />
-        (緯度: {resultStation.y}, 経度: {resultStation.x})
+        {/* (緯度: {resultStation.y}, 経度: {resultStation.x}) */}
       </p>
 
       {resultStation.estimatedTime && (

@@ -20,6 +20,7 @@ type StationsResponse = {
       name: string;
       line: string;
       prefecture: string;
+      postal: string;
       x: number;
       y: number;
     }[];
@@ -56,8 +57,13 @@ export default function Home() {
     const fetchLines = async () => {
       setLoading(true);
       setStatusMessage("路線データを取得中...");
+
       try {
-        const res = await fetch(`https://express.heartrails.com/api/json?method=getLines&prefecture=${encodeURIComponent(selectedPref)}`);
+        let searchPref = selectedPref;
+        if (selectedPref.includes("東京都")) {
+          searchPref = "東京都";
+        }
+        const res = await fetch(`https://express.heartrails.com/api/json?method=getLines&prefecture=${encodeURIComponent(searchPref)}`);
         const data: LinesResponse = await res.json();
         setLines(data?.response?.line || []);
         setStatusMessage("");
@@ -83,6 +89,8 @@ export default function Home() {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(departureStation)}`);
+        // method=getStations はそのまま、パラメータを filtering に変える
+        // const res = await fetch(`https://express.heartrails.com/api/json?method=getStations&filtering=${encodeURIComponent(departureStation)}`);
         const data: StationsResponse = await res.json();
         const stations = data?.response?.station || [];
 
@@ -198,7 +206,23 @@ export default function Home() {
 
         let candidates = stations;
         if (selectedPref !== "全国") {
-          candidates = stations.filter(s => s.prefecture === selectedPref);
+
+          if (selectedPref === "東京都(23区内)") {
+            // 郵便番号が 100〜159 で始まるものが23区
+            candidates = stations.filter(s => s.postal && s.postal.match(/^1[0-5]/));
+
+          } else if (selectedPref === "東京都(23区外)") {
+            // 郵便番号が 180〜208 で始まるものが多摩地域（23区外）
+            // またはシンプルに「東京都だけど23区内じゃないやつ」
+            candidates = stations.filter(s => s.prefecture === "東京都" && !(s.postal && s.postal.match(/^1[0-5]/)));
+
+          } else {
+            // それ以外の県は今まで通り名前で一致させる
+            // (APIには "東京都" で検索かけているので、ここで "東京都(全域)" の場合の考慮もOK)
+            let searchPref = selectedPref;
+            if (selectedPref === "東京都(全域)") searchPref = "東京都"; // そのまま
+            candidates = stations.filter(s => s.prefecture === searchPref);
+          }
         }
 
         if (candidates.length === 0) continue;
@@ -260,6 +284,7 @@ export default function Home() {
               onChange={(e) => {
                 setDepartureStation(e.target.value);
                 setShowSuggestions(false);
+                setCurrentCoords(null);
               }}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               onKeyDown={(e) => {
