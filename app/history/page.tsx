@@ -8,6 +8,8 @@ type Record = {
   line: string;
   date: string;
   prefecture: string;
+  x?: number; // 経度（任意）
+  y?: number; // 緯度（任意）
 };
 
 const PREF_CODE_MAP: { [key: string]: string } = {
@@ -101,23 +103,17 @@ export default function HistoryPage() {
     if (saved) {
       const data: Record[] = JSON.parse(saved);
 
-      // ★ 重複を完全に排除する処理
-      // Mapオブジェクトを使って、駅名(name)をキーにして保存
-      // あとから出てきた同じ名前のデータが上書きされるので、最新の1つだけが残ります
-      const uniqueMap = new Map();
-      data.forEach(item => {
-        // 駅名だけで判定。もし「路線が違えば別」にしたいなら key = item.name + item.line にします
-        uniqueMap.set(item.name, item.item);
-        // ※↑ ここがポイント：同じ名前が来たら最新に更新される
+      // 重複排除の修正版
+      const uniqueMap = new Map<string, Record>();
+      data.forEach((item) => {
+        // 駅名をキーにして、最新のデータをセットする
         uniqueMap.set(item.name, item);
       });
 
       const uniqueData = Array.from(uniqueMap.values());
-
-      // 綺麗にしたデータをStateに入れる
       setHistory(uniqueData);
 
-      // ★重要：LocalStorageの中身自体も、重複がない綺麗な状態に上書き保存し直す
+      // ストレージをきれいにしておく
       localStorage.setItem("stationHistory", JSON.stringify(uniqueData));
     }
 
