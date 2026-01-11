@@ -5,7 +5,7 @@ import { PREFECTURES, PREFECTURE_DATA } from './constants';
 // ★作ったファイルを読み込む
 import { calculateDistance, estimateTime } from './utils';
 import ResultCard from './ResultCard';
-
+import SearchForm from './SearchForm';
 
 // 型定義
 type LinesResponse = {
@@ -23,6 +23,8 @@ type StationsResponse = {
       postal: string;
       x: number;
       y: number;
+      prev?: string; // 前の駅（始発の場合はデータがないので ? をつける）
+      next?: string; // 次の駅（終点の場合はデータがないので ? をつける）
     }[];
   }
 };
@@ -45,8 +47,6 @@ export default function Home() {
 
   // 表示する都道府県リスト
   const [displayPrefectures, setDisplayPrefectures] = useState<string[]>(PREFECTURES);
-  // 入力フォーム全体を監視するための「参照(ref)」
-  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // 路線
   const [selectedLine, setSelectedLine] = useState<string>("すべて");
@@ -143,9 +143,6 @@ export default function Home() {
   // 画面クリック監視用
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
-      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -277,138 +274,31 @@ export default function Home() {
     <main className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-6 text-slate-800">駅ガチャ 🚃</h1>
+        <SearchForm
+          departureStation={departureStation}
+          setDepartureStation={setDepartureStation}
+          suggestions={suggestions}
+          showSuggestions={showSuggestions}
+          setShowSuggestions={setShowSuggestions}
+          setCurrentCoords={setCurrentCoords}
+          setResultStation={setResultStation}
+          maxTime={maxTime}
+          setMaxTime={setMaxTime}
+          selectedPref={selectedPref}
+          setSelectedPref={setSelectedPref}
+          displayPrefectures={displayPrefectures}
+          lines={lines}
+          selectedLine={selectedLine}
+          setSelectedLine={setSelectedLine}
+          loading={loading}
+          currentCoords={currentCoords}
+          handleGacha={handleGacha}
+        />
+        {statusMessage && <p className="text-center text-sm text-slate-500 animate-pulse mt-4">{statusMessage}</p>}
 
-        <div className="space-y-6">
-
-          {/* 出発駅入力フォーム */}
-          <div className="relative" ref={wrapperRef}>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              出発駅（現在地）
-              <span className="text-red-500 text-xs ml-2 font-bold">必須</span>
-            </label>
-            <input
-              type="text"
-              placeholder="例: 新宿"
-              className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 text-slate-900 focus:ring-indigo-500 outline-none transition-all"
-              value={departureStation}
-              onChange={(e) => {
-                setDepartureStation(e.target.value);
-                setShowSuggestions(false);
-                setCurrentCoords(null);
-              }}
-              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-              onKeyDown={(e) => {
-                // Enterキーが押されたら閉じる
-                // (!e.nativeEvent.isComposing は「日本語変換中のEnter」を除外するためのおまじないです)
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  setShowSuggestions(false);
-                }
-              }}
-            />
-            {showSuggestions && suggestions.length > 0 && (
-              <ul className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto mt-1">
-                {suggestions.map((station, index) => (
-                  <li
-                    key={`${station.name}-${index}`}
-                    className="p-3 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-none transition-colors"
-                    onClick={() => {
-                      setDepartureStation(station.name);
-                      setCurrentCoords({ lat: station.y, lon: station.x });
-                      setShowSuggestions(false);
-                    }}
-                  >
-                    <div className="font-bold text-slate-800">{station.name}</div>
-                    <div className="text-xs text-slate-500">{station.line} ({station.prefecture})</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* 移動時間の条件設定 */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">移動時間（目安）</label>
-            <div className="relative">
-              <select
-                className="w-full p-3 border border-slate-300 rounded-lg text-slate-900 bg-slate-50 appearance-none"
-                value={maxTime}
-                onChange={(e) => setMaxTime(e.target.value)}
-              >
-                <option value="30">30分以内</option>
-                <option value="60">1時間以内</option>
-                <option value="90">1時間半以内</option>
-                <option value="120">2時間以内</option>
-                <option value="180">3時間以内</option>
-                <option value="0">無制限（どこまでも）</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
-            </div>
-          </div>
-
-          {/* 都道府県選択 */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">エリア選択</label>
-            <select
-              className="w-full p-3 border border-slate-300 text-slate-900 rounded-lg bg-slate-50"
-              value={selectedPref}
-              onChange={(e) => setSelectedPref(e.target.value)}
-              disabled={loading}
-            >
-              <option value="全国">全国</option>
-              {displayPrefectures.map(pref => (
-                <option key={pref} value={pref}>{pref}</option>
-              ))}
-            </select>
-
-            <p className="text-xs text-slate-500 mt-1 text-right">
-              {maxTime !== "0" && departureStation && displayPrefectures.length < 47
-                ? `条件に合う ${displayPrefectures.length} エリアから検索`
-                : selectedPref === "全国"
-                  ? "日本国内のすべての駅から抽選します"
-                  : lines.length > 0 ? `${lines.length} 路線が見つかりました` : "読み込み中..."}
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">路線選択（オプション）</label>
-            <div className="relative">
-              <select
-                className="w-full p-3 border border-slate-300 text-slate-900 rounded-lg bg-slate-50 appearance-none disabled:bg-slate-200 disabled:text-slate-400"
-                value={selectedLine}
-                onChange={(e) => setSelectedLine(e.target.value)}
-                // 全国モードの時は選べないようにする（路線が多すぎるため）
-                disabled={selectedPref === "全国" || lines.length === 0}
-              >
-                <option value="すべて">すべての路線から</option>
-                {lines.map(line => (
-                  <option key={line} value={line}>{line}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleGacha}
-            disabled={loading || (selectedPref !== "全国" && lines.length === 0)}
-            className={`w-full py-4 rounded-xl font-bold text-lg text-white transition-all shadow-md
-              ${loading ? "bg-slate-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg active:scale-95"}
-            `}
-          >
-            {loading ? "通信中..." : "どこかの駅へ行く！"}
-          </button>
-
-          {statusMessage && <p className="text-center text-sm text-slate-500 animate-pulse">{statusMessage}</p>}
-
-          {/* ★結果表示カード: コンポーネント化したので1行で済む！ */}
-          {resultStation && (
-            <ResultCard resultStation={resultStation} departureStation={departureStation} />
-          )}
-
-        </div>
+        {resultStation && (
+          <ResultCard resultStation={resultStation} departureStation={departureStation} />
+        )}
       </div>
 
       <footer className="mt-8 text-center text-xs text-slate-400">
