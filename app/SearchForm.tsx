@@ -189,7 +189,7 @@ export default function SearchForm({
           ${loading || !currentCoords ? "bg-slate-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg active:scale-95"}
         `}
       >
-        {loading ? "通信中..." : !currentCoords ? "駅をリストから選んでください" : "どこかの駅へ行く！"}
+        {loading ? "通信中..." : !currentCoords ? "出発駅を入力してください" : "どこかの駅へ行く！"}
       </button>
     </div>
   );
