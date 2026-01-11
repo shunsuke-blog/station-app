@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-// PREFECTURE_DATA は必須です！
+import { useState, useEffect, useRef } from 'react';
 import { PREFECTURES, PREFECTURE_DATA } from './constants';
+// ★作ったファイルを読み込む
+import { calculateDistance, estimateTime } from './utils';
+import ResultCard from './ResultCard';
 
+
+// 型定義
 type LinesResponse = {
   response: {
     line: string[];
@@ -22,24 +26,6 @@ type StationsResponse = {
   }
 };
 
-// 距離計算関数
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function estimateTime(distanceKm: number): number {
-  const actualDistance = distanceKm * 1.3;
-  const speedKmh = 40;
-  return Math.round((actualDistance / speedKmh) * 60);
-}
-
 export default function Home() {
   const [selectedPref, setSelectedPref] = useState<string>("全国");
   const [lines, setLines] = useState<string[]>([]);
@@ -53,13 +39,15 @@ export default function Home() {
   const [maxTime, setMaxTime] = useState<string>("60");
   const [resultStation, setResultStation] = useState<any>(null);
 
-  // ★追加: 出発駅の座標（絞り込み用）
+  // 出発駅の座標
   const [currentCoords, setCurrentCoords] = useState<{ lat: number, lon: number } | null>(null);
 
-  // ★追加: ドロップダウンに表示する都道府県リスト（最初は全員）
+  // 表示する都道府県リスト
   const [displayPrefectures, setDisplayPrefectures] = useState<string[]>(PREFECTURES);
+  // 入力フォーム全体を監視するための「参照(ref)」
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // 1. 都道府県が変わったら路線を取得（変更なし）
+  // 1. 都道府県が変わったら路線を取得
   useEffect(() => {
     if (selectedPref === "全国") {
       setLines([]);
@@ -84,11 +72,11 @@ export default function Home() {
   }, [selectedPref]);
 
 
-  // 2. 出発駅の入力処理（座標取得ロジックを追加）
+  // 2. 出発駅の入力処理
   useEffect(() => {
     if (!departureStation) {
       setSuggestions([]);
-      setCurrentCoords(null); // クリア
+      setCurrentCoords(null);
       return;
     }
 
@@ -101,7 +89,6 @@ export default function Home() {
         setSuggestions(stations);
         setShowSuggestions(true);
 
-        // ★追加: 入力された駅が存在すれば、その座標を記憶しておく
         if (stations.length > 0) {
           setCurrentCoords({ lat: stations[0].y, lon: stations[0].x });
         }
@@ -114,18 +101,17 @@ export default function Home() {
   }, [departureStation]);
 
 
-  // ★追加: 「出発駅の座標」または「時間設定」が変わったら、都道府県リストを再計算する
+  // 3. 都道府県リストの再計算
   useEffect(() => {
-    // 条件が揃っていない場合は、全県を表示して終了
     if (!currentCoords || maxTime === "0") {
       setDisplayPrefectures(PREFECTURES);
       return;
     }
 
-    // 距離計算してフィルタリング
+    // 計算ロジックを utils.ts に追い出したのでスッキリ！
     const speedKmh = 40;
     const maxDist = (parseInt(maxTime) / 60) * speedKmh;
-    const searchRadius = maxDist + 80; // 県の端っこも考慮してバッファを持たせる
+    const searchRadius = maxDist + 80;
 
     const filteredPrefs = PREFECTURE_DATA.filter(pref => {
       const dist = calculateDistance(currentCoords.lat, currentCoords.lon, pref.y, pref.x);
@@ -134,16 +120,26 @@ export default function Home() {
 
     setDisplayPrefectures(filteredPrefs);
 
-    // もし現在選択中の都道府県が、リストから消えた場合（例：北海道を選んでいたのに新宿60分にした場合）
-    // 「全国」に戻してあげる
     if (selectedPref !== "全国" && !filteredPrefs.includes(selectedPref)) {
       setSelectedPref("全国");
     }
 
   }, [currentCoords, maxTime, selectedPref]);
 
+  // 画面クリック監視用
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
-  // 3. ガチャ実行ボタン（ロジックは前回と同じ）
+  // ガチャ実行ボタン
   const handleGacha = async () => {
     if (!departureStation) {
       alert("出発駅を入力してください！");
@@ -159,7 +155,6 @@ export default function Home() {
       let deptLat = 0;
       let deptLon = 0;
 
-      // 座標が既にある場合はそれを使う（API節約）
       if (currentCoords) {
         deptLat = currentCoords.lat;
         deptLon = currentCoords.lon;
@@ -177,22 +172,15 @@ export default function Home() {
         deptLon = station.x;
       }
 
-      // 抽選ロジック
       let foundStation = null;
       let retryCount = 0;
       const MAX_RETRIES = 100;
-
-      // ★修正: リスト絞り込み済みの displayPrefectures を使う
-      // （これで「全国」を選んでも、遠すぎる県は抽選対象に入らない）
       const targetPrefList = displayPrefectures;
-
-      // ... (前略) whileループの開始部分 ...
 
       while (retryCount < MAX_RETRIES) {
         retryCount++;
         setStatusMessage(retryCount > 1 ? `条件に合う駅を探しています...(${retryCount}回目)` : "抽選中...");
 
-        // A. 路線を選ぶ
         let targetLines = lines;
 
         if (selectedPref === "全国") {
@@ -204,39 +192,30 @@ export default function Home() {
         }
 
         const randomLine = targetLines[Math.floor(Math.random() * targetLines.length)];
-
-        // B. 駅を選ぶ
         const resStations = await fetch(`https://express.heartrails.com/api/json?method=getStations&line=${encodeURIComponent(randomLine)}`);
         const dataStations: StationsResponse = await resStations.json();
         const stations = dataStations.response.station;
 
-        // ★修正ポイント: ここで「都道府県フィルタ」をかける！
         let candidates = stations;
-
-        // もし「全国」以外（東京都など）が選ばれていたら、その県の駅だけに絞り込む
         if (selectedPref !== "全国") {
           candidates = stations.filter(s => s.prefecture === selectedPref);
         }
 
-        // 絞り込んだ結果、候補がなくなってしまったら（路線だけ通過して駅がない等）やり直し
         if (candidates.length === 0) continue;
 
-        // 絞り込んだリストからランダムに選ぶ
         const candidate = candidates[Math.floor(Math.random() * candidates.length)];
 
+        // 計算ロジックを utils.ts から使用
+        const dist = calculateDistance(deptLat, deptLon, candidate.y, candidate.x);
+        const time = estimateTime(dist);
 
-        // C. 時間判定
         if (maxTime === "0") {
-          const dist = calculateDistance(deptLat, deptLon, candidate.y, candidate.x);
-          const time = estimateTime(dist);
           foundStation = candidate;
           (foundStation as any).estimatedTime = time;
           break;
         }
 
-        const dist = calculateDistance(deptLat, deptLon, candidate.y, candidate.x);
-        const time = estimateTime(dist);
-        console.log(`候補: ${candidate.name}駅 (${candidate.prefecture}), 推定時間: ${time}分`);
+        console.log(`候補: ${candidate.name}駅, 推定時間: ${time}分`);
 
         if (time <= parseInt(maxTime)) {
           foundStation = candidate;
@@ -268,7 +247,7 @@ export default function Home() {
         <div className="space-y-6">
 
           {/* 出発駅入力フォーム */}
-          <div className="relative">
+          <div className="relative" ref={wrapperRef}>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               出発駅（現在地）
               <span className="text-red-500 text-xs ml-2 font-bold">必須</span>
@@ -276,15 +255,21 @@ export default function Home() {
             <input
               type="text"
               placeholder="例: 新宿"
-              className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 text-slate-900 focus:ring-indigo-500 outline-none transition-all"
               value={departureStation}
               onChange={(e) => {
                 setDepartureStation(e.target.value);
                 setShowSuggestions(false);
               }}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              onKeyDown={(e) => {
+                // Enterキーが押されたら閉じる
+                // (!e.nativeEvent.isComposing は「日本語変換中のEnter」を除外するためのおまじないです)
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  setShowSuggestions(false);
+                }
+              }}
             />
-            {/* 予測候補のドロップダウンリスト */}
             {showSuggestions && suggestions.length > 0 && (
               <ul className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto mt-1">
                 {suggestions.map((station, index) => (
@@ -293,7 +278,6 @@ export default function Home() {
                     className="p-3 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-none transition-colors"
                     onClick={() => {
                       setDepartureStation(station.name);
-                      // ★追加: 候補クリック時にも座標をセットしてリスト更新を促す
                       setCurrentCoords({ lat: station.y, lon: station.x });
                       setShowSuggestions(false);
                     }}
@@ -311,7 +295,7 @@ export default function Home() {
             <label className="block text-sm font-medium text-slate-700 mb-2">移動時間（目安）</label>
             <div className="relative">
               <select
-                className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 appearance-none"
+                className="w-full p-3 border border-slate-300 rounded-lg text-slate-900 bg-slate-50 appearance-none"
                 value={maxTime}
                 onChange={(e) => setMaxTime(e.target.value)}
               >
@@ -332,21 +316,18 @@ export default function Home() {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">エリア選択</label>
             <select
-              className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50"
+              className="w-full p-3 border border-slate-300 text-slate-900 rounded-lg bg-slate-50"
               value={selectedPref}
               onChange={(e) => setSelectedPref(e.target.value)}
               disabled={loading}
             >
               <option value="全国">全国</option>
-
-              {/* ★修正: 絞り込まれたリスト(displayPrefectures)を表示 */}
               {displayPrefectures.map(pref => (
                 <option key={pref} value={pref}>{pref}</option>
               ))}
             </select>
 
             <p className="text-xs text-slate-500 mt-1 text-right">
-              {/* メッセージも動的に */}
               {maxTime !== "0" && departureStation && displayPrefectures.length < 47
                 ? `条件に合う ${displayPrefectures.length} エリアから検索`
                 : selectedPref === "全国"
@@ -355,7 +336,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* ガチャボタン */}
           <button
             onClick={handleGacha}
             disabled={loading || (selectedPref !== "全国" && lines.length === 0)}
@@ -366,34 +346,11 @@ export default function Home() {
             {loading ? "通信中..." : "どこかの駅へ行く！"}
           </button>
 
-          {/* ステータス表示 */}
           {statusMessage && <p className="text-center text-sm text-slate-500 animate-pulse">{statusMessage}</p>}
 
-          {/* 結果表示エリア */}
+          {/* ★結果表示カード: コンポーネント化したので1行で済む！ */}
           {resultStation && (
-            <div className="mt-4 p-6 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-center animate-bounce-short">
-              <p className="text-sm text-indigo-600 font-bold mb-1">{resultStation.line}</p>
-              <h2 className="text-3xl font-black text-slate-800 mb-2">{resultStation.name}<span className="text-lg font-normal">駅</span></h2>
-              <p className="text-xs text-slate-500">
-                📍 {resultStation.prefecture} <br />
-                (緯度: {resultStation.y}, 経度: {resultStation.x})
-              </p>
-
-              {resultStation.estimatedTime && (
-                <div className="mt-2 py-1 px-3 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full inline-block">
-                  {departureStation}から 約{resultStation.estimatedTime}分
-                </div>
-              )}
-
-              <a
-                href={`https://www.google.com/maps?q=${encodeURIComponent(resultStation.name + "駅")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-4 text-xs text-blue-500 underline hover:text-blue-700"
-              >
-                Google Mapsで見る
-              </a>
-            </div>
+            <ResultCard resultStation={resultStation} departureStation={departureStation} />
           )}
 
         </div>
