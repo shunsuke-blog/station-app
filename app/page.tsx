@@ -149,6 +149,11 @@ export default function Home() {
 
         </div>
       </div>
+
+      {/*クレジット表記 */}
+      <footer className="mt-8 text-center text-xs text-slate-400">
+        Powered by <a href="http://express.heartrails.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600">HeartRails Express</a>
+      </footer>
     </main>
   );
 }
