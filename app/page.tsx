@@ -48,8 +48,14 @@ export default function Home() {
   // 入力フォーム全体を監視するための「参照(ref)」
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  // 路線
+  const [selectedLine, setSelectedLine] = useState<string>("すべて");
+
   // 1. 都道府県が変わったら路線を取得
   useEffect(() => {
+    // ★追加: 都道府県が変わったら、選択中の路線を「すべて」に戻す
+    setSelectedLine("すべて");
+    // ↓ここから下は今までと同じです
     if (selectedPref === "全国") {
       setLines([]);
       return;
@@ -57,12 +63,12 @@ export default function Home() {
     const fetchLines = async () => {
       setLoading(true);
       setStatusMessage("路線データを取得中...");
-
       try {
         let searchPref = selectedPref;
         if (selectedPref.includes("東京都")) {
           searchPref = "東京都";
         }
+
         const res = await fetch(`https://express.heartrails.com/api/json?method=getLines&prefecture=${encodeURIComponent(searchPref)}`);
         const data: LinesResponse = await res.json();
         setLines(data?.response?.line || []);
@@ -197,6 +203,12 @@ export default function Home() {
           const data: LinesResponse = await res.json();
           targetLines = data?.response?.line || [];
           if (targetLines.length === 0) continue;
+        } else {
+          // ★追加: 都道府県指定モードの場合
+          // もし特定の路線が選ばれていたら、その路線だけを対象にする
+          if (selectedLine !== "すべて") {
+            targetLines = [selectedLine];
+          }
         }
 
         const randomLine = targetLines[Math.floor(Math.random() * targetLines.length)];
@@ -226,7 +238,6 @@ export default function Home() {
         }
 
         if (candidates.length === 0) continue;
-
         const candidate = candidates[Math.floor(Math.random() * candidates.length)];
 
         // 計算ロジックを utils.ts から使用
@@ -240,7 +251,6 @@ export default function Home() {
         }
 
         console.log(`候補: ${candidate.name}駅, 推定時間: ${time}分`);
-
         if (time <= parseInt(maxTime)) {
           foundStation = candidate;
           (foundStation as any).estimatedTime = time;
@@ -359,6 +369,26 @@ export default function Home() {
                   ? "日本国内のすべての駅から抽選します"
                   : lines.length > 0 ? `${lines.length} 路線が見つかりました` : "読み込み中..."}
             </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">路線選択（オプション）</label>
+            <div className="relative">
+              <select
+                className="w-full p-3 border border-slate-300 text-slate-900 rounded-lg bg-slate-50 appearance-none disabled:bg-slate-200 disabled:text-slate-400"
+                value={selectedLine}
+                onChange={(e) => setSelectedLine(e.target.value)}
+                // 全国モードの時は選べないようにする（路線が多すぎるため）
+                disabled={selectedPref === "全国" || lines.length === 0}
+              >
+                <option value="すべて">すべての路線から</option>
+                {lines.map(line => (
+                  <option key={line} value={line}>{line}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
           </div>
 
           <button
