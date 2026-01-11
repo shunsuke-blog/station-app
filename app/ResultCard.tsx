@@ -19,6 +19,7 @@ export default function ResultCard({ resultStation, departureStation }: Props) {
   const handleSave = () => {
     // 1. 今表示されている駅名を取得（例: stationNameという変数に入っているとする）
     const stationName = resultStation.name;
+    const stationLine = resultStation.line;
     const visitDate = new Date().toLocaleDateString(); // 今日の日付
 
     // 2. 今までの保存データを取得（なければ空のリスト [] を作る）
@@ -27,6 +28,7 @@ export default function ResultCard({ resultStation, departureStation }: Props) {
     // 3. 新しい記録を追加
     const newEntry = {
       name: stationName,
+      line: stationLine,
       date: visitDate,
       prefecture: resultStation.prefecture // ★これを追加
     };
@@ -59,7 +61,10 @@ export default function ResultCard({ resultStation, departureStation }: Props) {
 
         {/* 中央：当選した駅（幅は文字数なり、縮まない） */}
         <div className="shrink-0 text-center px-2">
-          <h2 className="wrap-break-word leading-tight text-3xl font-black text-slate-800">
+          <h2 className={`
+      font-black text-slate-800 leading-tight wrap-break-word
+      ${resultStation.name.length > 10 ? 'text-xl' : 'text-3xl'} 
+    `}>
             {resultStation.name}
           </h2>
         </div>
