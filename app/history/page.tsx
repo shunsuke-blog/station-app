@@ -212,7 +212,7 @@ export default function HistoryPage() {
 
         {/* --- 検索・追加フォームエリア --- */}
         <div className="bg-white border-2 border-indigo-100 p-5 rounded-3xl shadow-sm mb-8">
-          <p className="text-xs font-bold text-indigo-400 mb-3 px-1 text-center uppercase tracking-widest">追加</p>
+          <p className="text-xs font-bold text-indigo-400 mb-3 px-1 text-center uppercase tracking-widest">訪れた駅を追加</p>
 
           <div className="relative">
             <div className="bg-slate-50 border-2 border-slate-100 p-3 rounded-2xl flex items-center mb-4 focus-within:border-indigo-200 transition-all">
@@ -224,7 +224,7 @@ export default function HistoryPage() {
                   setSearchQuery(e.target.value);
                   setPendingStation(null); // 入力し直したら仮選択を解除
                 }}
-                placeholder="駅名を検索..."
+                placeholder="例：新宿"
                 className="w-full text-sm outline-none bg-transparent font-bold text-slate-700"
               />
             </div>
