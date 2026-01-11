@@ -6,6 +6,7 @@ import { PREFECTURES, PREFECTURE_DATA } from './constants';
 import { calculateDistance, estimateTime } from './utils';
 import ResultCard from './ResultCard';
 import SearchForm from './SearchForm';
+import Link from "next/link";
 
 // 型定義
 type LinesResponse = {
@@ -34,11 +35,9 @@ export default function Home() {
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
-
   const [departureStation, setDepartureStation] = useState<string>("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
-
   const [maxTime, setMaxTime] = useState<string>("60");
   const [resultStation, setResultStation] = useState<any>(null);
 
@@ -271,7 +270,16 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
+    <main className="min-h-screen bg-indigo-50 flex flex-col items-center justify-center p-4">
+      {/* 画面右上に記録ページへのリンクを配置する例 */}
+      <div className="flex justify-end mb-4">
+        <Link
+          href="/history"
+          className="text-sm font-bold text-indigo-600 bg-white border border-indigo-200 px-4 py-2 rounded-full shadow-sm hover:bg-indigo-50 transition"
+        >
+          🗒️ 今までの記録を見る
+        </Link>
+      </div>
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-6 text-slate-800">駅ガチャ 🚃</h1>
         <SearchForm

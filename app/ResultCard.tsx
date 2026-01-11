@@ -16,6 +16,27 @@ type Props = {
 };
 
 export default function ResultCard({ resultStation, departureStation }: Props) {
+  const handleSave = () => {
+    // 1. 今表示されている駅名を取得（例: stationNameという変数に入っているとする）
+    const stationName = resultStation.name;
+    const visitDate = new Date().toLocaleDateString(); // 今日の日付
+
+    // 2. 今までの保存データを取得（なければ空のリスト [] を作る）
+    const currentHistory = JSON.parse(localStorage.getItem("stationHistory") || "[]");
+
+    // 3. 新しい記録を追加
+    const newEntry = {
+      name: stationName,
+      date: visitDate,
+      prefecture: resultStation.prefecture // ★これを追加
+    };
+    const newHistory = [...currentHistory, newEntry];
+
+    // 4. LocalStorageに保存（文字に変換して）
+    localStorage.setItem("stationHistory", JSON.stringify(newHistory));
+
+    alert("記録しました！");
+  };
   return (
     <div className="mt-4 p-6 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-center animate-bounce-short w-full">
 
@@ -69,15 +90,26 @@ export default function ResultCard({ resultStation, departureStation }: Props) {
       )}
 
       <br />
+      <div className="mt-6 flex items-center justify-center gap-3">
+        {/* Google Mapsリンク */}
+        <a
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(resultStation.name + "駅")}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-500 underline hover:text-blue-700"
+        >
+          Google Mapsで見る
+        </a>
 
-      <a
-        href={`https://www.google.com/maps?q=${encodeURIComponent(resultStation.name + "駅")}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-block mt-4 text-xs text-blue-500 underline hover:text-blue-700"
-      >
-        Google Mapsで見る
-      </a>
+        {/* 記録ボタン（おとなしいデザインに変更） */}
+        <button
+          onClick={handleSave}
+          className="text-xs text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded px-3 py-1 transition flex items-center gap-1"
+        >
+          <span>💾</span> ここに行った！
+        </button>
+      </div>
     </div>
+
   );
 }
